@@ -1,0 +1,97 @@
+#! /bin/sh
+### BEGIN INIT INFO
+# Provides:          shadowsocks
+# Required-Start:    $syslog $time $remote_fs
+# Required-Stop:     $syslog $time $remote_fs
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Description:       Start shadowsocks daemon
+### END INIT INFO
+
+PATH=/bin:/usr/bin:/sbin:/usr/sbin
+DAEMON_SS_LOCAL=/config/shadowsocks/bin/ss-local
+DAEMON_SS_REDIR=/config/shadowsocks/bin/ss-redir
+DAEMON_SS_WATCHDOG=/config/shadowsocks/bin/ss-watchdog
+DAEMON_PDNSD=/config/shadowsocks/bin/pdnsd
+DAEMON_KCPTUN=/config/shadowsocks/bin/kcptun_client
+
+#Make sure your shadowsocks config file is correct!
+SS_CONFIG=/config/shadowsocks/conf/shadowsocks.json
+PDNSD_CONFIG=/config/shadowsocks/conf/pdnsd.conf
+KCPTUN_CONFIG=/config/shadowsocks/conf/kcptun.json
+
+PIDFILE_SS_LOCAL=/var/run/ss-local.pid
+PIDFILE_SS_REDIR=/var/run/ss-redir.pid
+PIDFILE_SS_WATCHDOG=/var/run/ss-watchdog.pid
+PIDFILE_PDNSD=/var/run/pdnsd.pid
+
+test -x $DAEMON_SS_LOCAL || exit 0
+test -x $DAEMON_SS_REDIR || exit 0
+test -x $DAEMON_SS_WATCHDOG || exit 0
+test -x $DAEMON_PDNSD || exit 0
+test -x $DAEMON_KCPTUN || exit 0
+
+. /lib/lsb/init-functions
+
+case "$1" in
+  start)
+	if [ -f $KCPTUN_CONFIG ]; then
+		log_daemon_msg "Starting kcptun" "kcptun"
+		start-stop-daemon -S -x $DAEMON_KCPTUN --oknodo --background --startas $DAEMON_KCPTUN -- -c $KCPTUN_CONFIG
+		log_end_msg $?
+	fi
+
+	log_daemon_msg "Starting ss-local" "ss-local"
+	start-stop-daemon -S -p $PIDFILE_SS_LOCAL --oknodo --startas $DAEMON_SS_LOCAL -- -u -l 1080 -c $SS_CONFIG -f $PIDFILE_SS_LOCAL -b 0.0.0.0
+	log_end_msg $?
+
+	log_daemon_msg "Starting ss-redir" "ss-redir"
+	start-stop-daemon -S -p $PIDFILE_SS_REDIR --oknodo --startas $DAEMON_SS_REDIR -- -u -l 1081 -c $SS_CONFIG -f $PIDFILE_SS_REDIR -b 0.0.0.0
+	log_end_msg $?
+
+	log_daemon_msg "Starting pdnsd" "pdnsd"
+	start-stop-daemon -S -p $PIDFILE_PDNSD --oknodo --startas $DAEMON_PDNSD -- -c $PDNSD_CONFIG -d -p $PIDFILE_PDNSD
+	log_end_msg $?
+
+	log_daemon_msg "Starting ss-watchdog" "ss-watchdog"
+	start-stop-daemon -S -p $PIDFILE_SS_WATCHDOG --oknodo --background --startas $DAEMON_SS_WATCHDOG
+	log_end_msg $?
+	;;
+  stop)
+	log_daemon_msg "Stopping ss-watchdog" "ss-watchdog"
+	start-stop-daemon -K -p $PIDFILE_SS_WATCHDOG --oknodo
+	log_end_msg $?
+
+	log_daemon_msg "Stopping pdnsd" "pdnsd"
+	start-stop-daemon -K -p $PIDFILE_PDNSD --oknodo
+	log_end_msg $?
+
+	log_daemon_msg "Stopping ss-local" "ss-local"
+	start-stop-daemon -K -p $PIDFILE_SS_LOCAL --oknodo
+	log_end_msg $?
+
+	log_daemon_msg "Stopping ss-redir" "ss-redir"
+	start-stop-daemon -K -p $PIDFILE_SS_REDIR --oknodo
+	log_end_msg $?
+
+	log_daemon_msg "Stopping kcptun" "kcptun"
+	start-stop-daemon -K -x $DAEMON_KCPTUN --oknodo
+	log_end_msg $?
+	;;
+  force-reload|restart)
+	$0 stop
+	$0 start
+	;;
+  status)
+	status_of_proc -p $PIDFILE_SS_REDIR $DAEMON_SS_REDIR ss-redir
+	status_of_proc -p $PIDFILE_SS_LOCAL $DAEMON_SS_LOCAL ss-local
+	status_of_proc -p $PIDFILE_PDNSD $DAEMON_PDNSD pdnsd
+	;;
+  *)
+    echo "Usage: /etc/init.d/shadowsocks {start|stop|restart|force-reload|status}"
+    exit 1
+    ;;
+esac
+
+exit 0
+
