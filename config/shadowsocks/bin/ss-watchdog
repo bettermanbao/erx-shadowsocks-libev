@@ -1,0 +1,31 @@
+#!/bin/sh
+
+PIDFILE_SS_WATCHDOG=/var/run/ss-watchdog.pid
+echo $$ > $PIDFILE_SS_WATCHDOG
+
+LOGFILE=/var/log/shadowsocks_watchdog.log
+touch $LOGFILE
+
+while true; do
+	sleep 60
+	
+	LOGSIZE=$(wc -c < $LOGFILE)
+	if [ $LOGSIZE -ge 10000 ]; then
+		sed -i -e 1,10d $LOGFILE
+	fi
+
+	LOGTIME=$(date "+%Y-%m-%d %H:%M:%S")
+
+	curl --retry 1 --silent --connect-timeout 3 --resolve www.google.com:80:127.0.0.1 -I www.google.com > /dev/null
+	if [ "$?" == "0" ]; then
+		echo "[$LOGTIME] No problem." >> $LOGFILE
+	else
+		curl --retry 1 --silent --connect-timeout 3 -I www.baidu.com  > /dev/null
+		if [ "$?" == "0" ]; then
+			echo "[$LOGTIME] Problem decteted, restart Shadowsocks." >> $LOGFILE
+			/etc/init.d/shadowsocks restart
+		else
+			echo "[$LOGTIME] Network problem. Do nothing." >> $LOGFILE
+		fi
+	fi
+done
