@@ -1,0 +1,8 @@
+{
+    "server":"127.0.0.1",
+    "server_port":12580,
+    "local_port": 1081,
+    "password": "password",
+    "method": "rc4-md5",
+    "timeout": 120
+}
