@@ -50,6 +50,8 @@ case "$1" in
 	log_end_msg $?
 
 	log_daemon_msg "Starting pdnsd" "pdnsd"
+	rm -rf /tmp/pdnsd
+	mkdir /tmp/pdnsd
 	start-stop-daemon -S -p $PIDFILE_PDNSD --oknodo --startas $DAEMON_PDNSD -- -c $PDNSD_CONFIG -d -p $PIDFILE_PDNSD
 	log_end_msg $?
 
