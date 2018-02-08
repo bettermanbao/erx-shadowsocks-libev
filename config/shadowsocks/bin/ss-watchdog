@@ -16,7 +16,7 @@ while true; do
 
 	LOGTIME=$(date "+%Y-%m-%d %H:%M:%S")
 
-	curl --retry 1 --silent --connect-timeout 3 --resolve www.google.com:80:127.0.0.1 -I www.google.com > /dev/null
+	curl --retry 1 --silent --connect-timeout 3 --socks5 127.0.0.1:1080 -I www.google.com > /dev/null
 	if [ "$?" == "0" ]; then
 		echo "[$LOGTIME] No problem." >> $LOGFILE
 	else
