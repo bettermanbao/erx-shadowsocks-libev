@@ -1,10 +1,15 @@
 # erx-shadowsocks-libev
 GFWList Mode
 
+shadowsocks-libev v3.1.3
+
+kcptun v20171201
+
+redsocks v0.5
+
 ## How to use:
-* Copy all files to your EdgeRouter X.
-* Edit "/config/shadowsocks/conf/shadowsocks.json".
-* Enable auto start by running "update-rc.d shadowsocks enable".
-* Restart your EdgeRouter X.
+* Follow procedure [HERE][R].
 
 Enjoy!
+
+  [R]: https://github.com/bettermanbao/erx-shadowsocks-libev/releases
