@@ -16,35 +16,32 @@ DAEMON_SS_WATCHDOG=/config/shadowsocks/bin/ss-watchdog
 DAEMON_DF=/config/shadowsocks/bin/dns-forwarder
 DAEMON_KCPTUN=/config/shadowsocks/bin/kcptun_client
 DAEMON_RS=/config/redsocks/redsocks
+DAEMON_KP=/config/koolproxy/koolproxy
 
 #Make sure your shadowsocks config file is correct!
 SS_CONFIG=/config/shadowsocks/conf/shadowsocks.json
 KCPTUN_CONFIG=/config/shadowsocks/conf/kcptun.json
 RS_CONFIG=/config/redsocks/redsocks.conf
 
-PIDFILE_SS_LOCAL=/var/run/ss-local.pid
-PIDFILE_SS_REDIR=/var/run/ss-redir.pid
+PIDFILE_SS_LOCAL1=/var/run/ss-local1.pid
+PIDFILE_SS_REDIR1=/var/run/ss-redir1.pid
+PIDFILE_SS_LOCAL2=/var/run/ss-local2.pid
+PIDFILE_SS_REDIR2=/var/run/ss-redir2.pid
 PIDFILE_SS_WATCHDOG=/var/run/ss-watchdog.pid
 PIDFILE_RS=/var/run/redsocks.pid
-
-test -x $DAEMON_SS_LOCAL || exit 0
-test -x $DAEMON_SS_REDIR || exit 0
-test -x $DAEMON_SS_WATCHDOG || exit 0
-test -x $DAEMON_DF || exit 0
-test -x $DAEMON_KCPTUN || exit 0
-test -x $DAEMON_RS || exit 0
 
 . /lib/lsb/init-functions
 
 case "$1" in
   start)
-	iptables -t nat -D PREROUTING -p tcp -m set --match-set gfwlist dst -j REDIRECT --to-port 1081
-	iptables -t nat -D OUTPUT -p tcp -m set --match-set gfwlist dst -j REDIRECT --to-port 1081
+	iptables -t nat -D PREROUTING -p tcp --dport 80 -m set --match-set kplist dst -j REDIRECT --to-port 3000 > /dev/null 2>&1
+	iptables -t nat -D PREROUTING -p tcp -m set --match-set gfwlist dst -j REDIRECT --to-port 1081 > /dev/null 2>&1
+	iptables -t nat -D OUTPUT -p tcp -m set --match-set gfwlist dst -j REDIRECT --to-port 1081 > /dev/null 2>&1
 
-	iptables -t nat -D PREROUTING -p udp -d 8.8.4.4 --dport 53 -j REDIRECT --to-port 53
-	iptables -t nat -D PREROUTING -p udp -d 8.8.8.8 --dport 53 -j REDIRECT --to-port 53
+	iptables -t nat -D PREROUTING -p udp -d 8.8.4.4 --dport 53 -j REDIRECT --to-port 53 > /dev/null 2>&1
+	iptables -t nat -D PREROUTING -p udp -d 8.8.8.8 --dport 53 -j REDIRECT --to-port 53 > /dev/null 2>&1
 
-	ipset destroy gfwlist
+	ipset destroy gfwlist > /dev/null 2>&1
 
 	ipset create gfwlist hash:net
 	ipset add gfwlist 8.8.8.8
@@ -54,6 +51,14 @@ case "$1" in
 	ipset add gfwlist 109.239.140.0/24
 	ipset add gfwlist 149.154.160.0/20
 	ipset add gfwlist 54.182.1.0/24
+
+	ipset destroy kplist > /dev/null 2>&1
+
+	ipset create kplist hash:ip
+
+	if [ -f $DAEMON_KP ]; then
+		iptables -t nat -I PREROUTING -p tcp --dport 80 -m set --match-set kplist dst -j REDIRECT --to-port 3000 > /dev/null 2>&1
+	fi
 
 	iptables -t nat -I PREROUTING -p tcp -m set --match-set gfwlist dst -j REDIRECT --to-port 1081
 	iptables -t nat -I OUTPUT -p tcp -m set --match-set gfwlist dst -j REDIRECT --to-port 1081
@@ -74,13 +79,18 @@ case "$1" in
 	fi
 
 	if [ -f $SS_CONFIG ]; then
-		log_daemon_msg "Starting ss-local" "ss-local"
-		start-stop-daemon -S -p $PIDFILE_SS_LOCAL --oknodo --startas $DAEMON_SS_LOCAL -- -u -l 1080 -c $SS_CONFIG -f $PIDFILE_SS_LOCAL -b 0.0.0.0
+		log_daemon_msg "Starting ss-local1" "ss-local"
+		start-stop-daemon -S -p $PIDFILE_SS_LOCAL1 --oknodo --startas $DAEMON_SS_LOCAL -- -u -l 1080 -c $SS_CONFIG -f $PIDFILE_SS_LOCAL1 -b 0.0.0.0 --fast-open --reuse-port
+		log_end_msg $?
+		log_daemon_msg "Starting ss-local2" "ss-local"
+		start-stop-daemon -S -p $PIDFILE_SS_LOCAL2 --oknodo --startas $DAEMON_SS_LOCAL -- -u -l 1080 -c $SS_CONFIG -f $PIDFILE_SS_LOCAL2 -b 0.0.0.0 --fast-open --reuse-port
 		log_end_msg $?
 
-
-		log_daemon_msg "Starting ss-redir" "ss-redir"
-		start-stop-daemon -S -p $PIDFILE_SS_REDIR --oknodo --startas $DAEMON_SS_REDIR -- -u -l 1081 -c $SS_CONFIG -f $PIDFILE_SS_REDIR -b 0.0.0.0
+		log_daemon_msg "Starting ss-redir1" "ss-redir"
+		start-stop-daemon -S -p $PIDFILE_SS_REDIR1 --oknodo --startas $DAEMON_SS_REDIR -- -u -l 1081 -c $SS_CONFIG -f $PIDFILE_SS_REDIR1 -b 0.0.0.0 --fast-open --reuse-port
+		log_end_msg $?
+		log_daemon_msg "Starting ss-redir2" "ss-redir"
+		start-stop-daemon -S -p $PIDFILE_SS_REDIR2 --oknodo --startas $DAEMON_SS_REDIR -- -u -l 1081 -c $SS_CONFIG -f $PIDFILE_SS_REDIR2 -b 0.0.0.0 --fast-open --reuse-port
 		log_end_msg $?
 	fi
 
@@ -97,8 +107,15 @@ case "$1" in
 	log_daemon_msg "Starting ss-watchdog" "ss-watchdog"
 	start-stop-daemon -S -p $PIDFILE_SS_WATCHDOG --oknodo --background --startas $DAEMON_SS_WATCHDOG
 	log_end_msg $?
+
+	if [ -f $DAEMON_KP ]; then
+		log_daemon_msg "Starting koolproxy" "koolproxy"
+		start-stop-daemon -S -x $DAEMON_KP --oknodo --background --startas $DAEMON_KP -- -e -d
+		log_end_msg $?
+	fi
 	;;
   stop)
+	iptables -t nat -D PREROUTING -p tcp --dport 80 -m set --match-set kplist dst -j REDIRECT --to-port 3000
 	iptables -t nat -D PREROUTING -p tcp -m set --match-set gfwlist dst -j REDIRECT --to-port 1081
 	iptables -t nat -D OUTPUT -p tcp -m set --match-set gfwlist dst -j REDIRECT --to-port 1081
 
@@ -106,6 +123,11 @@ case "$1" in
 	iptables -t nat -D PREROUTING -p udp -d 8.8.8.8 --dport 53 -j REDIRECT --to-port 53
 
 	ipset destroy gfwlist
+	ipset destroy kplist
+
+	log_daemon_msg "Stopping koolproxy" "koolproxy"
+	start-stop-daemon -K -x $DAEMON_KP --oknodo
+	log_end_msg $?
 
 	log_daemon_msg "Stopping ss-watchdog" "ss-watchdog"
 	start-stop-daemon -K -p $PIDFILE_SS_WATCHDOG --oknodo
@@ -115,12 +137,20 @@ case "$1" in
 	start-stop-daemon -K -x $DAEMON_DF --oknodo
 	log_end_msg $?
 
-	log_daemon_msg "Stopping ss-local" "ss-local"
-	start-stop-daemon -K -p $PIDFILE_SS_LOCAL --oknodo
+	log_daemon_msg "Stopping ss-local1" "ss-local"
+	start-stop-daemon -K -p $PIDFILE_SS_LOCAL1 --oknodo
 	log_end_msg $?
 
-	log_daemon_msg "Stopping ss-redir" "ss-redir"
-	start-stop-daemon -K -p $PIDFILE_SS_REDIR --oknodo
+	log_daemon_msg "Stopping ss-local2" "ss-local"
+	start-stop-daemon -K -p $PIDFILE_SS_LOCAL2 --oknodo
+	log_end_msg $?
+
+	log_daemon_msg "Stopping ss-redir1" "ss-redir"
+	start-stop-daemon -K -p $PIDFILE_SS_REDIR1 --oknodo
+	log_end_msg $?
+
+	log_daemon_msg "Stopping ss-redir2" "ss-redir"
+	start-stop-daemon -K -p $PIDFILE_SS_REDIR2 --oknodo
 	log_end_msg $?
 
 	log_daemon_msg "Stopping redsocks" "redsocks"
@@ -136,8 +166,11 @@ case "$1" in
 	$0 start
 	;;
   status)
-	status_of_proc -p $PIDFILE_SS_REDIR $DAEMON_SS_REDIR ss-redir
-	status_of_proc -p $PIDFILE_SS_LOCAL $DAEMON_SS_LOCAL ss-local
+	status_of_proc -p $PIDFILE_SS_REDIR1 $DAEMON_SS_REDIR ss-redir1
+	status_of_proc -p $PIDFILE_SS_REDIR2 $DAEMON_SS_REDIR ss-redir2
+	status_of_proc -p $PIDFILE_SS_LOCAL1 $DAEMON_SS_LOCAL ss-local1
+	status_of_proc -p $PIDFILE_SS_LOCAL2 $DAEMON_SS_LOCAL ss-local2
+	status_of_proc -p $PIDFILE_SS_WATCHDOG DAEMON_SS_WATCHDOG ss-watchdog
 	status_of_proc -p $PIDFILE_RS $DAEMON_RS redsocks
 	;;
   *)
