@@ -16,11 +16,11 @@ while true; do
 
 	LOGTIME=$(date "+%Y-%m-%d %H:%M:%S")
 
-	curl --retry 1 --silent --connect-timeout 3 -I www.google.com > /dev/null
+	curl --retry 1 --silent --connect-timeout 3 -I -4 www.google.com > /dev/null
 	if [ "$?" == "0" ]; then
 		echo "[$LOGTIME] No problem." >> /dev/null
 	else
-		curl --retry 1 --silent --connect-timeout 3 -I www.baidu.com  > /dev/null
+		curl --retry 1 --silent --connect-timeout 3 -I -4 www.baidu.com  > /dev/null
 		if [ "$?" == "0" ]; then
 			echo "[$LOGTIME] Problem decteted, restart Shadowsocks." >> $LOGFILE
 			/etc/init.d/shadowsocks restart
