@@ -7,6 +7,8 @@ kcptun v20171201
 
 redsocks v0.5
 
+koolproxy v3.8.1
+
 ## How to use:
 * Follow procedure [HERE][R].
 
